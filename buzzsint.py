@@ -296,16 +296,20 @@ class BuzzSINT(App):
     ]
 
     current_module = reactive(list(FLAT_MODULES.keys())[0])
+    _id_to_name: dict = {}  # safe_id -> canonical module name
     is_running = reactive(False)
 
     def _build_list_items(self):
-        """Build sidebar items with group headers mixed in."""
+        """Build sidebar items with group headers mixed in. Populates _id_to_name map."""
+        import re
         items = []
+        self._id_to_name = {}
         for group_name, mods in GROUPS.items():
-            # Group header — not selectable
-            items.append(ListItem(Static(f"  {group_name}"), id=f"grp-{group_name}"))
+            safe_grp = re.sub(r"[^a-zA-Z0-9\-]", "-", group_name).strip("-").lower()
+            items.append(ListItem(Static(f"  {group_name}"), id=f"grp-{safe_grp}"))
             for name, fn, hint in mods:
-                safe_id = "mod-" + name.lower().replace(" ", "-").replace("/", "-")
+                safe_id = "mod-" + re.sub(r"[^a-zA-Z0-9]", "-", name.lower())
+                self._id_to_name[safe_id] = name
                 items.append(ListItem(Static(f"    {name}"), id=safe_id))
         return items
 
@@ -351,11 +355,8 @@ class BuzzSINT(App):
         if not item_id.startswith("mod-"):
             return  # ignore group headers
 
-        # Find the module name by matching the static text
-        static = event.item.query_one(Static)
-        name = static.renderable.strip()
-
-        if name in FLAT_MODULES:
+        name = self._id_to_name.get(item_id)
+        if name and name in FLAT_MODULES:
             self.current_module = name
             hint = FLAT_MODULES[name][1]
             self.query_one("#target-input", Input).placeholder = f"Target ({hint})"
